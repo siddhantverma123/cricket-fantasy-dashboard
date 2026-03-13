@@ -4,13 +4,14 @@ import pandas as pd
 
 API_KEY = "28ec5cc1-5e9f-47c1-aabb-355e71cde094"
 
-st.set_page_config(page_title="Cricket Fantasy Analyzer", layout="wide")
+st.set_page_config(page_title="LIVE Cricket Fantasy Dashboard", layout="wide")
 
-st.title("🏏 Cricket Match Fantasy Analyzer")
+st.title("🏏 LIVE Cricket Fantasy Dashboard")
+st.markdown("Real-time scores + Fantasy points | Powered by CricAPI")
 
-# -----------------------------
-# SEARCH MATCHES
-# -----------------------------
+# -------------------------
+# GET LIVE MATCHES
+# -------------------------
 @st.cache_data(ttl=60)
 def get_matches():
 
@@ -19,33 +20,41 @@ def get_matches():
     try:
         r = requests.get(url)
         data = r.json()
-        return data.get("data",[])
+        return data.get("data", [])
     except:
         return []
 
 matches = get_matches()
 
-# Search bar
-search = st.text_input("🔎 Search match (Team name)")
+# -------------------------
+# SEARCH MATCH
+# -------------------------
+search = st.text_input("🔎 Search match (team name)")
 
 filtered_matches = []
 
-if matches:
-    for m in matches:
-        name = f"{m['t1']} vs {m['t2']}"
-        if search.lower() in name.lower():
-            filtered_matches.append(m)
+for m in matches:
+    t1 = m.get("t1", "Team A")
+    t2 = m.get("t2", "Team B")
 
-# -----------------------------
-# MATCH SELECT
-# -----------------------------
+    name = f"{t1} vs {t2}"
+
+    if search.lower() in name.lower():
+        filtered_matches.append(m)
+
+# -------------------------
+# SELECT MATCH
+# -------------------------
 match_id = None
 
 if filtered_matches:
 
-    match_names = [
-        f"{m['t1']} vs {m['t2']}" for m in filtered_matches
-    ]
+    match_names = []
+
+    for m in filtered_matches:
+        t1 = m.get("t1", "Team A")
+        t2 = m.get("t2", "Team B")
+        match_names.append(f"{t1} vs {t2}")
 
     selected = st.selectbox(
         "Select Match",
@@ -56,16 +65,16 @@ if filtered_matches:
     match = filtered_matches[selected]
 
     st.subheader(match_names[selected])
-    st.info(match.get("status"))
+    st.info(match.get("status", "Live"))
 
     match_id = match.get("id")
 
 else:
     st.warning("No matches found")
 
-# -----------------------------
+# -------------------------
 # GET PLAYERS
-# -----------------------------
+# -------------------------
 @st.cache_data(ttl=60)
 def get_players(match_id):
 
@@ -80,21 +89,21 @@ def get_players(match_id):
 
         players = []
 
-        for team in data.get("data",[]):
-            for p in team.get("players",[]):
+        for team in data.get("data", []):
+            for p in team.get("players", []):
 
                 players.append({
-                    "Player":p.get("name"),
-                    "Runs":0,
-                    "Fours":0,
-                    "Sixes":0,
-                    "Wickets":0,
-                    "Catches":0,
-                    "Runouts":0,
-                    "Stumpings":0,
-                    "Maidens":0,
-                    "HatTrick":0,
-                    "Duck":0
+                    "Player": p.get("name"),
+                    "Runs": 0,
+                    "Fours": 0,
+                    "Sixes": 0,
+                    "Wickets": 0,
+                    "Catches": 0,
+                    "Runouts": 0,
+                    "Stumpings": 0,
+                    "Maidens": 0,
+                    "HatTrick": 0,
+                    "Duck": 0
                 })
 
         return players
@@ -104,14 +113,12 @@ def get_players(match_id):
 
 players = get_players(match_id)
 
-# -----------------------------
+# -------------------------
 # FANTASY POINTS
-# -----------------------------
+# -------------------------
 def fantasy_points(p):
 
     runs = p.get("Runs",0)
-    fours = p.get("Fours",0)
-    sixes = p.get("Sixes",0)
     wickets = p.get("Wickets",0)
     catches = p.get("Catches",0)
     runouts = p.get("Runouts",0)
@@ -122,6 +129,7 @@ def fantasy_points(p):
 
     points = 0
 
+    # batting
     points += runs
 
     if runs >= 100:
@@ -136,6 +144,7 @@ def fantasy_points(p):
     if duck:
         points -= 10
 
+    # bowling
     if wickets == 1:
         points += 30
     elif wickets == 2:
@@ -147,21 +156,22 @@ def fantasy_points(p):
     elif wickets >= 5:
         points += 200
 
-    points += catches*10
-    points += runouts*10
-    points += stumpings*10
+    # fielding
+    points += catches * 10
+    points += runouts * 10
+    points += stumpings * 10
 
-    points += maidens*100
+    # special
+    points += maidens * 100
 
     if hat:
         points += 300
 
     return points
 
-
-# -----------------------------
+# -------------------------
 # CALCULATE TEAM TABLE
-# -----------------------------
+# -------------------------
 fantasy_table = []
 
 for p in players:
@@ -170,14 +180,14 @@ for p in players:
 
     fantasy_table.append({
         **p,
-        "Total Points":pts
+        "Total Points": pts
     })
 
 fantasy_df = pd.DataFrame(fantasy_table)
 
-# -----------------------------
+# -------------------------
 # PLAYER SEARCH
-# -----------------------------
+# -------------------------
 st.markdown("### 🔎 Search Player")
 
 player_search = st.text_input("Type player name")
@@ -200,9 +210,9 @@ if not fantasy_df.empty:
             value=f"{player['Total Points']} Fantasy Points"
         )
 
-# -----------------------------
+# -------------------------
 # TEAM FANTASY TABLE
-# -----------------------------
+# -------------------------
 st.markdown("### 🏆 Full Team Fantasy Table")
 
 if not fantasy_df.empty:
@@ -218,5 +228,4 @@ if not fantasy_df.empty:
     )
 
 else:
-
-    st.warning("Player data not available")
+    st.info("Player data not available")
